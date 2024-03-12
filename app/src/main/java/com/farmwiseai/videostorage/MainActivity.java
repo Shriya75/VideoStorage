@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.util.Log;
 import android.widget.ListView;
 import android.widget.Toast;
 import android.widget.VideoView;
@@ -85,55 +86,27 @@ public class MainActivity extends AppCompatActivity {
             if (videoFile != null) {
                 Uri videoUri = FileProvider.getUriForFile(this, "com.farmwiseai.videostorage.fileprovider", videoFile);
                 takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, videoUri);
-                takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 30);
-                takeVideoIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 30); // Set max duration to 30 seconds
                 startActivityForResult(takeVideoIntent, REQUEST_VIDEO_CAPTURE);
+            } else {
+                Log.e("VideoCapture", "Video file is null");
             }
+        } else {
+            Log.e("VideoCapture", "No video capture app found");
         }
     }
+
+
+
 
     private File createVideoFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String videoFileName = "VIDEO_" + timeStamp + "_";
         File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
-        return File.createTempFile(videoFileName, ".mp4", storageDir);
+        File videoFile = File.createTempFile(videoFileName, ".mp4", storageDir);
+        Log.d("VideoFile", "Video file path: " + videoFile.getAbsolutePath());
+        return videoFile;
     }
-
-
-//    private void decodeAndPlayVideo() {
-//        VideoData lastVideoData = getLastVideoDataFromSharedPreferences();
-//        if (lastVideoData == null || lastVideoData.getBase64Data() == null || lastVideoData.getBase64Data().isEmpty()) {
-//            Toast.makeText(this, "No videos to decode", Toast.LENGTH_SHORT).show();
-//            return;
-//        }
-//
-//        String base64String = lastVideoData.getBase64Data();
-//        byte[] videoBytes = Base64.decode(base64String, Base64.DEFAULT);
-//        decodedVideoFile = new File(getFilesDir(), "decoded_video.mp4");
-//
-//        try (InputStream inputStream = new ByteArrayInputStream(videoBytes);
-//             FileOutputStream outputStream = new FileOutputStream(decodedVideoFile)) {
-//
-//            byte[] buffer = new byte[1024];
-//            int bytesRead;
-//            while ((bytesRead = inputStream.read(buffer)) != -1) {
-//                outputStream.write(buffer, 0, bytesRead);
-//            }
-//
-//            Uri videoUri = FileProvider.getUriForFile(this, "com.farmwiseai.videostorage.fileprovider", decodedVideoFile);
-//            Intent playIntent = new Intent(Intent.ACTION_VIEW, videoUri);
-//            playIntent.setDataAndType(videoUri, "video/mp4");
-//            playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-//            startActivity(playIntent);
-//
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            Toast.makeText(this, "Error decoding video", Toast.LENGTH_SHORT).show();
-//        }
-//    }
-
-
-
 
 
     @Override
@@ -141,8 +114,13 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == RESULT_OK) {
-            if (data != null && data.getData() != null) {
-                Uri videoUri = data.getData();
+            Uri videoUri = null;
+            if (data != null) {
+                videoUri = data.getData();
+            }
+
+            if (videoUri != null) {
+                // Video URI is valid, proceed with processing
                 try {
                     String base64String = convertVideoToBase64(videoUri);
                     VideoData vd = new VideoData(("video" + (base64List.size() + 1)), base64String);
@@ -156,7 +134,6 @@ public class MainActivity extends AppCompatActivity {
                     e.printStackTrace();
                     Toast.makeText(this, "Error converting video to Base64", Toast.LENGTH_SHORT).show();
                 }
-
             } else {
                 Toast.makeText(this, "Video URI is null", Toast.LENGTH_SHORT).show();
             }
@@ -164,6 +141,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Video recording cancelled", Toast.LENGTH_SHORT).show();
         }
     }
+
 
 
     private String convertVideoToBase64(Uri videoUri) throws IOException {

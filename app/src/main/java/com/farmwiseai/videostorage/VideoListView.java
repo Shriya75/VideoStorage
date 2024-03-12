@@ -10,19 +10,17 @@ import android.widget.ListView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
-
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-
 import java.io.File;
-import java.lang.reflect.Type;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 
 public class VideoListView extends AppCompatActivity {
 
     private ListView listView;
     private ArrayList<VideoData> base64List;
-    private int videoCounter = 1; // Initialize a counter for the video
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,23 +40,28 @@ public class VideoListView extends AppCompatActivity {
             Toast.makeText(this, "Video list fetched", Toast.LENGTH_SHORT).show();
 
             listView.setOnItemClickListener((parent, view, position, id) -> {
-                // Decode and play the selected video
+                // Get the selected video's Base64 data
                 String base64Data = base64List.get(position).getBase64Data();
-                byte[] videoBytes = Base64.decode(base64Data, Base64.DEFAULT);
 
-                // Save the decoded video with a unique name
-                String videoFileName = "decoded_video_" + videoCounter + ".mp4";
-                File decodedVideoFile = new File(getFilesDir(), "decoded_videos/" + videoFileName);
-                Uri videoUri = FileProvider.getUriForFile(this, "com.farmwiseai.videostorage.fileprovider", decodedVideoFile);
+                // Decode the Base64 data to create the video file
+                try {
+                    byte[] videoBytes = Base64.decode(base64Data, Base64.DEFAULT);
+                    File videoFile = createVideoFile(videoBytes);
 
-                // Increment the videoCounter for the next video
-                videoCounter++;
-
-                // Use the videoUri for playing the video or sharing it, etc.
-                Intent playIntent = new Intent(Intent.ACTION_VIEW);
-                playIntent.setDataAndType(videoUri, "video/mp4");
-                playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                startActivity(playIntent);
+                    // Play the video file
+                    if (videoFile != null) {
+                        Uri videoUri = FileProvider.getUriForFile(this, "com.farmwiseai.videostorage.fileprovider", videoFile);
+                        Intent playIntent = new Intent(Intent.ACTION_VIEW);
+                        playIntent.setDataAndType(videoUri, "video/mp4");
+                        playIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(playIntent);
+                    } else {
+                        Toast.makeText(this, "Error creating video file", Toast.LENGTH_SHORT).show();
+                    }
+                } catch (IllegalArgumentException e) {
+                    e.printStackTrace();
+                    Toast.makeText(this, "Error decoding video", Toast.LENGTH_SHORT).show();
+                }
             });
         } else {
             Toast.makeText(this, "Null video list", Toast.LENGTH_SHORT).show();
@@ -67,9 +70,20 @@ public class VideoListView extends AppCompatActivity {
 
     private ArrayList<VideoData> getBase64ListFromSharedPreferences() {
         SharedPreferences sharedPreferences = getSharedPreferences("my_prefs", MODE_PRIVATE);
-        Gson gson = new Gson();
         String json = sharedPreferences.getString("base64List", null);
-        Type type = new TypeToken<ArrayList<VideoData>>() {}.getType();
-        return gson.fromJson(json, type);
+        return json != null ? new Gson().fromJson(json, new TypeToken<ArrayList<VideoData>>(){}.getType()) : null;
+    }
+
+    private File createVideoFile(byte[] videoBytes) {
+        File videoFile = null;
+        try {
+            videoFile = File.createTempFile("video", ".mp4", getCacheDir());
+            FileOutputStream fos = new FileOutputStream(videoFile);
+            fos.write(videoBytes);
+            fos.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return videoFile;
     }
 }
